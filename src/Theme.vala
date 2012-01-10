@@ -27,8 +27,8 @@ namespace Wrote.Theme {
   public static const int ABOVE_PARAGRAPH = 3;
   public static const int BELOW_PARAGRAPH = 3;
   
-  public static const int REFRESH_RATE = 30 / 1000;
-  public static const double FADING_RATE = 0.01;
+  public static const int REFRESH_RATE = 1000 / 40; // ~25 fps
+  public static const double FADING_RATE = 0.1;
   
   public static Gdk.RGBA? COLOR = null;
   
