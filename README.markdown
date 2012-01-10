@@ -17,7 +17,7 @@ not destructive. *Make backups!*
 
 Wrote uses `waf` as its build system. 
 
-After having run `./waf configure`, o build it, run
+After having run `./waf configure`, to build it, run
   
     ./waf build:debug
 
