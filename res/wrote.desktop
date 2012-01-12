@@ -1,0 +1,11 @@
+[Desktop Entry]
+
+Type=Application
+Version=1.0
+Name=Wrote
+Comment=Minimal text editor that lets you just write.
+Categories=Office;WordProcessor;
+Exec=wrote %F
+Icon=wrote
+Terminal=false
+MimeType = text/plain;text/x-markdown;

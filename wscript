@@ -73,6 +73,7 @@ def build(bld):
   
   bld.install_files('${DATADIR}/wrote/images', bld.path.ant_glob('res/images/**/*'))
   bld.install_files('${DATADIR}/fonts/wrote', bld.path.ant_glob('res/fonts/**/*'))
+  bld.install_files('${DATADIR}/applications', 'res/wrote.desktop')
   
   if bld.env['LOCAL'] and not bld.is_install:
     waflib.Scripting.run_command('install')
