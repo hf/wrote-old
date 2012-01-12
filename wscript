@@ -1,20 +1,33 @@
 #!/usr/bin/env python
 
-from os import path
-from waflib import Logs
+import os
+import waflib
 
-VERSION = '0.0.1'
 APPNAME = 'wrote'
+VERSION = '0.0.1'
 
 top = '.'
 out = 'bld'
 
-def options(opt):
-  opt.load('compiler_c')
-  opt.load('vala')
-  opt.load('gnu_dirs')
+def options(opts):
+  opts.load('compiler_c')
+  opts.load('vala')
+  opts.load('gnu_dirs')
   
-def configure(conf):  
+  opts.add_option('--local', 
+    action='store_true', 
+    dest='local', 
+    default = False,
+    help = "Whether this is a local (debug) build.")
+    
+
+def configure(conf):
+  conf.env['LOCAL'] = conf.options.local
+  
+  if conf.options.local:
+    waflib.Logs.pprint('CYAN', 'Configuring for a local build.\n' +
+      'This means that you shouldn\'t try to install this globally.')
+  
   conf.check_cfg(
     package = 'glib-2.0',
     uselib_store = 'GLIB',
@@ -28,51 +41,28 @@ def configure(conf):
     atleast_version = '3.2.0',
     mandatory = True,
     args = '--cflags --libs')
-    
-  env = conf.env
-      
-  conf.setenv('debug', env)
   
-  conf.env['PREFIX'] = path.abspath(path.join(out, 'debug'))
+  if conf.options.local:
+    conf.env['PREFIX'] = os.path.abspath(os.path.join(out, 'local'))
   
   conf.load('compiler_c')
-  conf.load('vala')  
+  conf.load('vala')
   conf.load('gnu_dirs')
   
   conf.define('PREFIX', conf.env['PREFIX'])
   conf.define('LOCALEDIR', conf.env['LOCALEDIR'])
   conf.define('DATADIR', conf.env['DATADIR'])
   
-  conf.write_config_header('debug/config.h', 'debug')   
-  
-  conf.setenv('release', env)
-  
-  conf.load('compiler_c')
-  conf.load('vala')  
-  conf.load('gnu_dirs')
-  
-  conf.define('PREFIX', conf.env['PREFIX'])
-  conf.define('LOCALEDIR', conf.env['LOCALEDIR'])
-  conf.define('DATADIR', conf.env['DATADIR'])
-  
-  conf.write_config_header('release/config.h', 'release')
-
-def post_install(ctx):
-  print
-  Logs.pprint(None, 'Running `fc-cache` ...')
-  res = ctx.exec_command('fc-cache')
-  if res == 0:
-    Logs.pprint('CYAN', 'GOOD')
-  else:
-    Logs.pprint('RED', 'BAD')
-  
-  print
-  
-  return res
+  conf.write_config_header('config.h')   
 
 def build(bld):
-  if not bld.variant:
-    bld.fatal("What to %s? Consider calling:\n\twaf %s:release, or\n\twaf %s:debug." % (bld.cmd, bld.cmd, bld.cmd))
+  if bld.env['LOCAL']:
+    action = 'Building'
+    
+    if bld.is_install:
+      action = 'Installing'
+    
+    waflib.Logs.pprint('CYAN', '\n%s locally.\n' % (action))
     
   wrote = bld.program(
     target = APPNAME,
@@ -81,20 +71,8 @@ def build(bld):
     vapi_dirs = ['./vapi'],
     source = bld.path.ant_glob('src/**/*.vala'))
   
-  # Install Images
   bld.install_files('${DATADIR}/wrote/images', bld.path.ant_glob('res/images/**/*'))
   bld.install_files('${DATADIR}/fonts/wrote', bld.path.ant_glob('res/fonts/**/*'))
   
-  if bld.cmd.startswith("install") or bld.cmd.startswith("uninstall"):
-    bld.add_post_fun(post_install)
-  
-from waflib.Build import BuildContext, CleanContext, \
-        InstallContext, UninstallContext
-
-for x in ['debug', 'release']:
-  for y in (BuildContext, CleanContext, InstallContext, UninstallContext):
-    name = y.__name__.replace('Context','').lower()
-    class tmp(y): 
-      cmd = name + ':' + x
-      variant = x
-
+  if bld.env['LOCAL'] and not bld.is_install:
+    waflib.Scripting.run_command('install')

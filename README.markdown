@@ -17,18 +17,53 @@ not destructive. *Make backups!*
 
 Wrote uses `waf` as its build system. 
 
-After having run `./waf configure`, to build it, run
-  
-    ./waf build:debug
+There are two types of installation that you can perform for
+Wrote: local and global.
 
-For the debug version, or, similarly run
-  
-    ./waf build:release
+### Local Install
 
-For the release version.
+Installing locally means just to test Wrote (this is how 
+Wrote is being debugged) without the ability to install it
+system-wide and have something break. 
 
-To install (be careful!) just substitute `build` with 
-`install` in the commands above. 
+Firstly, run:
+    
+    ./waf configure --local
+
+This will tell `waf` to configure Wrote for local installation,
+meaning the GNU directories will be set to the local `bld`
+folder in which Wrote is compiled. As if you called
+    
+    ./waf configure --prefix=bld
+
+But with other debugging features enabled.
+
+Next, run:
+    
+    ./waf build
+
+`waf` automagically will install the files locally when 
+calling `build`, although nothing bad will happen if you call
+`install` also.
+
+Running Wrote locally happens by calling:
+
+    bld/local/bin/wrote
+
+### Global Install
+
+You use global installing when you want to place Wrote's 
+executables and data in a non-local place. This can be done
+by:
+
+    ./waf configure
+
+And later on, depending on where you set the `--prefix` 
+(default is `/usr/local/`), install as superuser or not:
+
+    ./waf build
+    (sudo) ./waf install
+
 
 ## Copyright
 
