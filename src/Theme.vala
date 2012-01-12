@@ -30,6 +30,8 @@ namespace Wrote.Theme {
   public static const int REFRESH_RATE = 1000 / 40; // ~25 fps
   public static const double FADING_RATE = 0.1;
   
+  public static const uint INACTIVITY_TIMEOUT = 3; // seconds
+  
   public static Gdk.RGBA? COLOR = null;
   
   public static const int FADE_SIZE = 10;

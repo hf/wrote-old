@@ -1,6 +1,11 @@
 using Gtk;
 using Cairo;
 
+public enum Wrote.MouseActivityState {
+  ACTIVE,
+  INACTIVE
+}
+
 public class Wrote.Window: Gtk.Window {
   
   public Wrote.Document document { get; construct set; }
@@ -14,7 +19,11 @@ public class Wrote.Window: Gtk.Window {
   
   public bool is_fullscreen { get; private set; default = false; }
   
+  public Wrote.MouseActivityState mouse_activity_state { get; private set; default = Wrote.MouseActivityState.ACTIVE; }
+  
   private Gtk.Box container;
+  
+  private uint inactivity_timeout = 0;
   
   construct {
     this.default_width = Wrote.Theme.WIDTH;
@@ -23,12 +32,7 @@ public class Wrote.Window: Gtk.Window {
     this.app_paintable = true;    
     this.application = Wrote.APP;
     
-    this.delete_event.connect(() => {
-      this.hide();
-      this.destroy();      
-      
-      return true;
-    });
+    this.add_events(Gdk.EventMask.POINTER_MOTION_MASK);
     
     this.modify_title();
     this.document.notify["title"].connect(() => {
@@ -90,6 +94,13 @@ public class Wrote.Window: Gtk.Window {
     action_fullscreen.add_to_accel_group(this.accelerators);
     // action_about.add_to_accel_group(this.accelerators);
     
+    this.notify["mouse-activity-state"].connect(() => {
+      if (this.mouse_activity_state == Wrote.MouseActivityState.ACTIVE)
+        this.stats.fade_in();
+      else
+        this.stats.fade_out();
+    });
+    
     this.add_accel_group(this.accelerators);
   }
   
@@ -100,6 +111,19 @@ public class Wrote.Window: Gtk.Window {
     }
     
     Object(document: document);
+  }
+  
+  public override void show() {
+    base.show();
+    
+    this.mouse_activity();
+  }
+  
+  public override bool delete_event(Gdk.EventAny event) {
+    this.hide();
+    this.destroy();
+    
+    return true;    
   }
   
   public override bool draw(Cairo.Context ctx) {
@@ -122,8 +146,36 @@ public class Wrote.Window: Gtk.Window {
     return false;
   }
   
+  public void mouse_activity() {
+    if (this.inactivity_timeout != 0) {
+      Source.remove(this.inactivity_timeout);
+      this.inactivity_timeout = 0;
+    }
+    
+    this.inactivity_timeout = 
+      Timeout.add_seconds(Wrote.Theme.INACTIVITY_TIMEOUT, this.inactive_timeout);
+    
+    if (this.mouse_activity_state != Wrote.MouseActivityState.ACTIVE)
+      this.mouse_activity_state = Wrote.MouseActivityState.ACTIVE;
+  }
+  
+  public override bool motion_notify_event(Gdk.EventMotion event) {
+    this.mouse_activity();
+    
+    return false;
+  }
+  
   void modify_title() {
     this.title = 
       (this.document.buffer.get_modified() ? "*" : "") + this.document.title;
+  }
+  
+  bool inactive_timeout() {
+    this.inactivity_timeout = 0;
+    
+    if (this.mouse_activity_state != Wrote.MouseActivityState.INACTIVE)
+      this.mouse_activity_state = Wrote.MouseActivityState.INACTIVE;
+    
+    return false;
   }
 }
