@@ -24,7 +24,7 @@ public class Wrote.OpenFileChooser: Gtk.FileChooserDialog {
       
       window.document.load.begin((o, r) => {
         // FIXME: Report error if the loading wasn't successful!
-        window.document.load.end(r)) {
+        if (window.document.load.end(r)) {
           this.hide();
           this.destroy();
         }
