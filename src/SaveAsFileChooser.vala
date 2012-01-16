@@ -59,4 +59,10 @@ public class Wrote.SaveAsFileChooser: Gtk.FileChooserDialog {
     }
     
   }
+  
+  public override bool delete_event(Gdk.EventAny event) {    
+    this.response(Gtk.ResponseType.CANCEL);
+    
+    return true;
+  }
 }
