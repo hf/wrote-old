@@ -17,17 +17,19 @@ public class Wrote.OpenFileChooser: Gtk.FileChooserDialog {
   }
   
   public override void response(int response) {
+    Wrote.Window window = this.transient_for as Wrote.Window;
     
     if (response == Gtk.ResponseType.OK) {
-      (this.transient_for as Wrote.Window).document.move(this.get_file());
+      window.document.move(this.get_file());
       
-      (this.transient_for as Wrote.Window).document.load.begin((o, r) => {
+      window.document.load.begin((o, r) => {
         // FIXME: Report error if the loading wasn't successful!
-        if ((this.transient_for as Wrote.Window).document.load.end(r)) {
+        window.document.load.end(r)) {
           this.hide();
           this.destroy();
         }
       });
+      
     } else {
       this.hide();
       this.destroy();
