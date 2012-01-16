@@ -52,6 +52,8 @@ public class Wrote.Document: Object {
   public async bool load() {
     if (this.file == null)
       return false;
+      
+    this.obtain_filename();
     
     FileInputStream? input = null;
     
@@ -177,5 +179,27 @@ public class Wrote.Document: Object {
     this.move(as, enc);
     
     return yield this.save();
+  }
+  
+  void obtain_filename() {
+    if (this.file == null)
+      return;
+    
+    this.file.query_info_async.begin(FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME,
+      FileQueryInfoFlags.NONE,
+      Priority.HIGH, 
+      null,
+      (o, r) => {
+        
+        try {
+          FileInfo info = this.file.query_info_async.end(r);
+          
+          this.title = info.get_display_name();
+          
+        } catch (Error e) {
+          error(e.message);
+        }
+      
+      });
   }
 }
