@@ -11,6 +11,8 @@ public class Wrote.OpenFileChooser: Gtk.FileChooserDialog {
     
     this.transient_for = Wrote.APP.window;
     
+    this.title = "Open File";
+    
     this.set_filter(Wrote.APP.file_filter);
   }
   

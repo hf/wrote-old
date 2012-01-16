@@ -14,9 +14,24 @@ public class Wrote.SaveAsFileChooser: Gtk.FileChooserDialog {
     
     this.set_default_response(Gtk.ResponseType.OK);
     
-    this.transient_for = Wrote.APP.window;
+    Wrote.Window window = Wrote.APP.window as Wrote.Window;
+    
+    this.transient_for = window;
+    
+    this.title = "Save File As";
     
     this.set_filter(Wrote.APP.file_filter);
+    
+    
+    if (window.document.file != null) {
+      this.set_file(window.document.file);
+    } else {
+      string documents = 
+        Environment.get_user_special_dir(UserDirectory.DOCUMENTS);
+      
+      this.set_current_folder(documents);
+      this.set_current_name("Untitled.txt");
+    }
   }
   
   public override void response(int response) {
