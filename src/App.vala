@@ -60,6 +60,18 @@ public class Wrote.App: Gtk.Application {
     Wrote.APP = new Wrote.App();
     
     return Wrote.APP.run(args);
+    
+    /* MainLoop loop = new MainLoop();
+    
+    Wrote.Document document = new Wrote.Document(File.new_for_commandline_arg(args[1]));
+    
+    document.load.begin((o, r) => {
+      stdout.printf("%s\n", document.buffer.text);
+    });
+    
+    loop.run();
+    
+    return 0; */
   }
   
   public Wrote.Window open_document(File? file = null) {

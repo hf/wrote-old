@@ -76,6 +76,7 @@ public class Wrote.Window: Gtk.Window {
     Wrote.Actions.SaveAs action_save_as = new Wrote.Actions.SaveAs();
     Wrote.Actions.Fullscreen action_fullscreen = new Wrote.Actions.Fullscreen();
     Wrote.Actions.About action_about = new Wrote.Actions.About();
+    Wrote.Actions.Close action_close = new Wrote.Actions.Close();
     
     this.actions = new Gtk.ActionGroup("Actions");
     this.accelerators = new Gtk.AccelGroup();
@@ -86,13 +87,15 @@ public class Wrote.Window: Gtk.Window {
     action_save_as.add_to(this.actions);
     action_fullscreen.add_to(this.actions);
     action_about.add_to(this.actions);
+    action_close.add_to(this.actions);
     
     action_new.add_to_accel_group(this.accelerators);
     action_open.add_to_accel_group(this.accelerators);
     action_save.add_to_accel_group(this.accelerators);
     action_save_as.add_to_accel_group(this.accelerators);
     action_fullscreen.add_to_accel_group(this.accelerators);
-    // action_about.add_to_accel_group(this.accelerators);
+    action_about.add_to_accel_group(this.accelerators);
+    action_close.add_to_accel_group(this.accelerators);
     
     this.notify["mouse-activity-state"].connect(() => {
       if (this.mouse_activity_state == Wrote.MouseActivityState.ACTIVE)
@@ -120,6 +123,7 @@ public class Wrote.Window: Gtk.Window {
   }
   
   public override bool delete_event(Gdk.EventAny event) {
+    
     this.hide();
     this.destroy();
     

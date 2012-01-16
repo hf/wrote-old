@@ -22,22 +22,26 @@ public class Wrote.SaveAsFileChooser: Gtk.FileChooserDialog {
   public override void response(int response) {
     
     if (response == Gtk.ResponseType.OK) {
-      (this.transient_for as Wrote.Window).document.save_as.begin(this.get_file(), (o, r) => {
-        // FIXME: Report error if the loading wasn't successful!
-        if ((this.transient_for as Wrote.Window).document.save_as.end(r)) {
+      
+      File selected_file = this.get_file();
+      Wrote.Window window = Wrote.APP.window as Wrote.Window;
+      
+      window.document.save_as(selected_file, null, (o, r) => {
+        bool result = window.document.save_as.end(r);
+        
+        if (result) {
           this.hide();
           this.destroy();
         }
+        
       });
+      
     } else {
+      
       this.hide();
       this.destroy();
+      
     }
-  }
-  
-  public override bool delete_event(Gdk.EventAny event) {    
-    this.response(Gtk.ResponseType.CANCEL);
     
-    return true;
   }
 }

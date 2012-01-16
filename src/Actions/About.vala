@@ -5,7 +5,7 @@ public class Wrote.Actions.About: Gtk.Action, Wrote.Action {
   
   construct {
     this.stock_id = "gtk-about";
-    this.accelerator = "<Control>A";
+    this.accelerator = "<Control><Shift>A";
   }
   
   public About() {

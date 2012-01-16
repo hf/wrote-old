@@ -13,10 +13,12 @@ public class Wrote.Actions.Save: Gtk.Action, Wrote.Action {
   }
   
   public override void activate() {
-    if ((Wrote.APP.window as Wrote.Window).document.file == null) {
-      (Wrote.APP.window as Wrote.Window).actions.get_action("SaveAs").activate();
+    Wrote.Window window = Wrote.APP.window as Wrote.Window;
+    
+    if (window.document.file == null) {
+      window.actions.get_action("SaveAs").activate();
     } else {
-      (Wrote.APP.window as Wrote.Window).document.save.begin();
+      window.document.save.begin();
     }
   }
 }

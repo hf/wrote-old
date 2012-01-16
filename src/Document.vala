@@ -1,146 +1,181 @@
 using Gtk;
 
+public enum Wrote.DocumentNewlineType {
+  LF = DataStreamNewlineType.LF,
+  CR = DataStreamNewlineType.CR,
+  CRLF = DataStreamNewlineType.CR_LF,
+  ANY  = DataStreamNewlineType.ANY
+}
+
+// FIXME: Support different line ending types.
+
 public class Wrote.Document: Object {
-
-  public File? file { get; construct set; default = null; }
-  public Wrote.TextBuffer buffer { get; private set; }
+  public const int BUFSIZE = 4096;
   
-  public string title { get; private set; default = "Untitled"; }
-
-  private Cancellable cancellable;
-  private Cancellable monitoring_cancellable;
-  private FileMonitor monitor;
+  public File? file { 
+    get; 
+    construct set; 
+    default = null; 
+  }
+  
+  public string encoding { 
+    get; 
+    construct set; 
+    default = "UTF-8"; 
+  }
+  
+  public Wrote.TextBuffer buffer { 
+    get; 
+    private set; 
+  }
+  
+  public string title { 
+    get; 
+    private set; 
+    default = "Untitled"; 
+  }
   
   construct {
     this.buffer = new Wrote.TextBuffer();
-    this.cancellable = new Cancellable();
-    this.monitoring_cancellable = new Cancellable();
-    
-    if (this.file != null)
-      this.move(this.file);
-  }
-
-  public Document(File? f = null) {
-    Object(file: f);
   }
   
-  ~Document() {
-    this.cancel();
-    this.cancel_monitoring();
-  }
-
-  public void move(File to, bool save_as = false) {
-    this.cancel_monitoring();
-  
-    this.file = to;  
-    this.hookup_file();
-  }
-  
-  public async bool save_as(File file) {
-    this.cancel_monitoring();
+  public Document(File? f = null, string? enc = null) {
+    string? e = enc;
     
-    this.file = file;
-    
-    bool good = yield this.save();
-    
-    if (good) {
-      this.hookup_file();
+    if (e == null) {
+      e = "UTF-8";
     }
     
-    return good;
+    Object(file: f, encoding: e);
   }
-
-  public void cancel() {
-    this.cancellable.cancel();
-    this.cancellable.reset();
-  }
-
+  
   public async bool load() {
-    this.cancel();
-    
     if (this.file == null)
       return false;
     
-    uint8[] contents = null;
-    string? etag = null;
+    FileInputStream? input = null;
     
-    bool good = false;
     try {
-      good = yield this.file.load_contents_async(this.cancellable, out contents, out etag);
+      input = yield this.file.read_async(Priority.DEFAULT);
     } catch (Error e) {
       error(e.message);
     }
     
-    if (contents != null && good) {
-      this.buffer.reset();
-      this.buffer.set_modified(false);
-      this.buffer.set_text((string) contents);
+    CharsetConverter? converter = null;
+    
+    try {
+      converter = new CharsetConverter("UTF-8", this.encoding);
+    } catch (Error e) {
+      error(e.message);
+    }
+    
+    ConverterInputStream converter_input = 
+      new ConverterInputStream(input, converter);
+    
+    DataInputStream data_input = new DataInputStream(converter_input);
+  
+    this.buffer.text = "";
+    
+    Gtk.TextIter end;
+    
+    size_t length = 0;
+    uint8[] buf = new uint8[BUFSIZE];
+    
+    do {
       
-      return true;
-    }
-    
-    return false;
-  }
-  
-  public async bool save() {
-    this.cancel();
-    
-    if (this.file == null)
-      return false;
-    
-    bool good = false;
-    
-    try {
-      good = yield this.file.replace_contents_async(
-        this.buffer.text, 
-        (size_t) this.buffer.text.length,
-        null, 
-        true,
-        FileCreateFlags.PRIVATE,
-        this.cancellable,
-        null);
-        
-    } catch (Error e) {
-      error(e.message);
-    }
-    
-    this.buffer.set_modified(false);
-    
-    return good;
-  }
-  
-  void cancel_monitoring() {
-    this.monitoring_cancellable.cancel();
-    this.monitoring_cancellable.reset();
-  }
-  
-  void file_changed(File file, File? other, FileMonitorEvent event) {
-    
-  }
-  
-  void hookup_file() {
-    try {
-      this.monitor = this.file.monitor(FileMonitorFlags.NONE, this.monitoring_cancellable);
-      this.monitor.changed.connect(this.file_changed);
-    } catch (Error e) {
-      error(e.message);
-    }
-    
-    this.file.query_info_async(FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME, 
-      FileQueryInfoFlags.NONE,
-      Priority.HIGH,
-      null, 
-      (o, r) => {
-        
       try {
-        FileInfo fileinfo = this.file.query_info_async.end(r);
-        this.title = (string) fileinfo.get_display_name();
+        length = yield data_input.read_async(buf, Priority.DEFAULT);
       } catch (Error e) {
-        this.title = "Untitled";
+        length = -1;
         error(e.message);
       }
       
-    });
+      if (length > 0) {
+        this.buffer.get_end_iter(out end);
+        this.buffer.insert_text(ref end, (string) buf, (int) length);
+      }
+      
+    } while (length > 0);
+    
+    return true;
+  }
+  
+  public void move(File to, string? encoding = null) {
+    if (encoding != null) {
+      this.encoding = encoding;
+    }
+    
+    this.file = to;
+  }
+  
+  public async bool save() {
+    if (this.file == null)
+      return false;
+    
+    FileOutputStream? output = null;
+    
+    try {
+      output = yield this.file.replace_async(
+        null, 
+        true, 
+        FileCreateFlags.PRIVATE,
+        Priority.DEFAULT);
+    } catch (Error e) {
+      error(e.message);
+    }
+    
+    CharsetConverter? converter = null;
+    
+    try {
+      converter = new CharsetConverter(this.encoding, "UTF-8");
+    } catch (Error e) {
+      error(e.message);
+    }
+    
+    ConverterOutputStream? converted_output = null;
+    
+    try {
+      converted_output = new ConverterOutputStream(output, converter);
+    } catch (Error e) {
+      error(e.message);
+    }
+    
+    DataOutputStream? data_output = null;
+    
+    try {
+      data_output = new DataOutputStream(converted_output);
+    } catch (Error e) {
+      error(e.message);
+    }
+    
+    Gtk.TextIter start, end;
+    this.buffer.get_start_iter(out start);
+    end = start;
+    
+    do {
+      end = start;
+      end.forward_chars(BUFSIZE);
+      
+      string text = this.buffer.get_text(start, end, false);
+      
+      try {
+        yield data_output.write_async(text.data, Priority.HIGH);
+      } catch (Error e) {
+        error(e.message);
+      }
+      
+      start = end;
+      
+    } while (!end.is_end());
+    
+    this.buffer.set_modified(false);
+    
+    return true;
+  }
+  
+  public async bool save_as(File as, string? enc = null) {    
+    this.move(as, enc);
+    
+    return yield this.save();
   }
 }
-
