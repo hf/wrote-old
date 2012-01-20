@@ -75,7 +75,7 @@ Licensed under the following license (MIT/X11):
 
 Permission is hereby granted, free of charge, to any person 
 obtaining a copy of this software and associated 
-documentation files (the "Software"), to deal in the 
+documentation files (the "Software") to deal in the 
 Software without restriction, including without limitation 
 the rights to use, copy, modify, merge, publish, distribute,
 sublicense, and/or sell copies of the Software, and to 
@@ -94,6 +94,21 @@ OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
 OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR 
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+### Icon Copyrights
+
+The icons (located under `res/sources/icons` and `res/icons`)
+for Wrote are:
+
+**Copyright &copy; 2012 Stojan Dimitrovski**
+
+And are licensed under the Creative Commons 
+Attribution-NonCommercial-NoDerivs 3.0 Unported License 
+([CC BY-NC-ND 3.0](http://creativecommons.org/licenses/by-nc-nd/3.0/)).
+
+
+### Font Copyrights
 
 This distribution includes the M+ 1m family found in 
 `res/fonts` which are:
