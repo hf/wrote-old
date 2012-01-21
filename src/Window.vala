@@ -1,185 +1,102 @@
-using Gtk;
-using Cairo;
+/*
+ * Window.vala
+ * This file is part of Wrote
+ *
+ * Copyright (C) 2012 - Stojan Dimitrovski
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is furnished to do
+ * so, subject to the following conditions:
 
-public enum Wrote.MouseActivityState {
-  ACTIVE,
-  INACTIVE
-}
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+*/
+
+using Gtk;
+using Wrote;
 
 public class Wrote.Window: Gtk.Window {
-  
+
   public Wrote.Document document { get; construct set; }
-  
-  public Wrote.TextView text_view { get; private set; }
+
+  // UI
+  public Gtk.Box container { get; private set; }
+
   public Wrote.Scroller scroller { get; private set; }
-  public Wrote.Stats stats { get; private set; }
-  
-  public Gtk.ActionGroup actions { get; private set; }
-  public Gtk.AccelGroup accelerators { get; private set; }
-  
-  public bool is_fullscreen { get; private set; default = false; }
-  
-  public Wrote.MouseActivityState mouse_activity_state { get; private set; default = Wrote.MouseActivityState.ACTIVE; }
-  
-  private Gtk.Box container;
-  
-  private uint inactivity_timeout = 0;
-  
+  public Wrote.TextView text_view { get; private set; }
+
+  public Window(Wrote.Document doc) {
+    Object(document: doc);
+  }
+
   construct {
+    this.application = Wrote.App;
+
+    this.app_paintable = true;
+
+    this.make_title(true);
+
     this.default_width = Wrote.Theme.WIDTH;
     this.default_height = Wrote.Theme.HEIGHT;
-    
-    this.app_paintable = true;    
-    this.application = Wrote.APP;
-    
-    this.add_events(Gdk.EventMask.POINTER_MOTION_MASK);
-    
-    this.modify_title();
-    this.document.notify["title"].connect(() => {
-      this.modify_title();
-    });
-    
-    this.document.buffer.modified_changed.connect(() => {
-      this.modify_title();
-    });
-    
-    this.container = new Gtk.Box(Gtk.Orientation.VERTICAL, 3);
-    
+
+    this.container = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+
+    this.scroller = new Wrote.Scroller();
     this.text_view = new Wrote.TextView(this.document);
-    this.scroller = 
-      new Wrote.Scroller(this.text_view.vadjustment, this.text_view.hadjustment);
+
     this.scroller.add(this.text_view);
-    
+
     this.container.pack_start(this.scroller, true, true, 0);
-    
-    this.stats = new Wrote.Stats(this.document);
-    this.container.pack_start(this.stats, false, false, 0);
-    
-    
-    this.stats.halign = Gtk.Align.CENTER;
-    this.stats.margin_top = Wrote.Theme.STATS_TOP_MARGIN;
-    this.stats.margin_bottom = Wrote.Theme.STATS_BOTTOM_MARGIN;
-    
-    this.add(this.container);
-    
+
     this.scroller.halign = Gtk.Align.CENTER;
-    this.scroller.margin_top = Wrote.Theme.TOP_MARGIN;
-    this.scroller.margin_bottom = Wrote.Theme.BOTTOM_MARGIN;
-    this.scroller.margin_left = Wrote.Theme.LEFT_MARGIN;
-    this.scroller.margin_right = Wrote.Theme.RIGHT_MARGIN;
-    
-    // TODO: Add menubar and hide it if not on a system with AppMenu
-    
-    Wrote.Actions.New action_new = new Wrote.Actions.New();
-    Wrote.Actions.Open action_open = new Wrote.Actions.Open();
-    Wrote.Actions.Save action_save = new Wrote.Actions.Save();
-    Wrote.Actions.SaveAs action_save_as = new Wrote.Actions.SaveAs();
-    Wrote.Actions.Fullscreen action_fullscreen = new Wrote.Actions.Fullscreen();
-    Wrote.Actions.About action_about = new Wrote.Actions.About();
-    Wrote.Actions.Close action_close = new Wrote.Actions.Close();
-    
-    this.actions = new Gtk.ActionGroup("Actions");
-    this.accelerators = new Gtk.AccelGroup();
-    
-    action_new.add_to(this.actions);
-    action_open.add_to(this.actions);
-    action_save.add_to(this.actions);
-    action_save_as.add_to(this.actions);
-    action_fullscreen.add_to(this.actions);
-    action_about.add_to(this.actions);
-    action_close.add_to(this.actions);
-    
-    action_new.add_to_accel_group(this.accelerators);
-    action_open.add_to_accel_group(this.accelerators);
-    action_save.add_to_accel_group(this.accelerators);
-    action_save_as.add_to_accel_group(this.accelerators);
-    action_fullscreen.add_to_accel_group(this.accelerators);
-    action_about.add_to_accel_group(this.accelerators);
-    action_close.add_to_accel_group(this.accelerators);
-    
-    this.notify["mouse-activity-state"].connect(() => {
-      if (this.mouse_activity_state == Wrote.MouseActivityState.ACTIVE)
-        this.stats.fade_in();
-      else
-        this.stats.fade_out();
-    });
-    
-    this.add_accel_group(this.accelerators);
+    this.scroller.margin_top = Wrote.Theme.MARGIN_TOP;
+    this.scroller.margin_bottom = Wrote.Theme.MARGIN_BOTTOM;
+    this.scroller.margin_left = Wrote.Theme.MARGIN_LEFT;
+    this.scroller.margin_right = Wrote.Theme.MARGIN_RIGHT;
+
+    this.add(this.container);
   }
-  
-  public Window(Wrote.Document? d = null) {
-    Wrote.Document? document = d;
-    if (d == null) {
-      document = new Wrote.Document();
-    }
-    
-    Object(document: document);
-  }
-  
-  public override void show() {
-    base.show();
-    
-    this.mouse_activity();
-  }
-  
-  public override bool delete_event(Gdk.EventAny event) {
-    
-    this.hide();
-    this.destroy();
-    
-    return true;    
-  }
-  
+
   public override bool draw(Cairo.Context ctx) {
+    ctx.save();
+
+    ctx.save();
+
     ctx.set_source(Wrote.Theme.BACKGROUND_PATTERN);
-    
+
+    ctx.set_operator(Cairo.Operator.SOURCE);
+
     ctx.paint();
-    
-    this.propagate_draw(this.get_child(), ctx);
-    
+
+    ctx.restore();
+
+    ctx.save();
+
+    base.draw(ctx);
+
+    ctx.restore();
+
     return true;
   }
-  
-  public override bool window_state_event(Gdk.EventWindowState event) {
-    if ((event.new_window_state & Gdk.WindowState.FULLSCREEN) != 0) {
-      this.is_fullscreen = true;
-    } else {
-      this.is_fullscreen = false;
+
+  void make_title(bool start_watching = false) {
+    this.title = (this.document.modified ? "*" : "") + this.document.title;
+
+    if (start_watching) {
+      this.document.notify["modified"].connect(() => {
+        this.make_title();
+      });
     }
-    
-    return false;
-  }
-  
-  public void mouse_activity() {
-    if (this.inactivity_timeout != 0) {
-      Source.remove(this.inactivity_timeout);
-      this.inactivity_timeout = 0;
-    }
-    
-    this.inactivity_timeout = 
-      Timeout.add_seconds(Wrote.Theme.INACTIVITY_TIMEOUT, this.inactive_timeout);
-    
-    if (this.mouse_activity_state != Wrote.MouseActivityState.ACTIVE)
-      this.mouse_activity_state = Wrote.MouseActivityState.ACTIVE;
-  }
-  
-  public override bool motion_notify_event(Gdk.EventMotion event) {
-    this.mouse_activity();
-    
-    return false;
-  }
-  
-  void modify_title() {
-    this.title = 
-      (this.document.buffer.get_modified() ? "*" : "") + this.document.title;
-  }
-  
-  bool inactive_timeout() {
-    this.inactivity_timeout = 0;
-    
-    if (this.mouse_activity_state != Wrote.MouseActivityState.INACTIVE)
-      this.mouse_activity_state = Wrote.MouseActivityState.INACTIVE;
-    
-    return false;
   }
 }
