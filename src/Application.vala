@@ -40,14 +40,8 @@ public class Wrote.Application: Gtk.Application {
     }
   }
 
-  public Gtk.FileFilter file_filter { get; private set; }
-
   construct {
     this.flags |= GLib.ApplicationFlags.HANDLES_OPEN;
-
-    this.file_filter = new Gtk.FileFilter();
-    this.file_filter.add_mime_type("text/plain");
-    this.file_filter.add_mime_type("text/x-markdown");
 
     Wrote.Theme.init();
   }
@@ -68,7 +62,7 @@ public class Wrote.Application: Gtk.Application {
     base.activate();
 
     if (this.get_windows().length() < 1) {
-      this.open_document();
+      this.create_document();
     }
   }
 
@@ -76,7 +70,7 @@ public class Wrote.Application: Gtk.Application {
     base.open(files, hint);
 
     for (int i = 0; i < files.length; i++) {
-      this.open_document(files[i]);
+      this.create_document(files[i]);
     }
   }
 
@@ -86,12 +80,10 @@ public class Wrote.Application: Gtk.Application {
     return Wrote.App.run(args);
   }
 
-  public Wrote.Window open_document(File? file = null) {
+  public Wrote.Window create_document(File? file = null) {
     Wrote.Document document = new Wrote.Document(file);
-    document.load.begin();
 
     Wrote.Window window = new Wrote.Window(document);
-
     window.show_all();
 
     return window;

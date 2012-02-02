@@ -32,6 +32,21 @@ public enum Wrote.DocumentNewlineType {
   ANY  = DataStreamNewlineType.ANY
 }
 
+public enum Wrote.DocumentState {
+  NORMAL,
+  LOADING,
+  SAVING
+}
+
+public errordomain Wrote.DocumentError {
+  FILE_NOT_FOUND,
+  FILE_EXISTS,
+  FILE_IS_DIRECTORY,
+  ENCODING_NOT_SUPPORTED,
+  ENCODING_CONVERSION_FAILED,
+  PERMISSION_DENIED
+}
+
 // FIXME: Support different line ending types.
 
 public class Wrote.Document: Object {
@@ -54,6 +69,12 @@ public class Wrote.Document: Object {
     private set;
   }
 
+  public Wrote.DocumentState state {
+    get;
+    private set;
+    default = Wrote.DocumentState.NORMAL;
+  }
+
   public string title {
     get;
     private set;
@@ -70,12 +91,28 @@ public class Wrote.Document: Object {
     }
   }
 
+  public bool has_file {
+    get {
+      return (this.file != null);
+    }
+  }
+
+  public signal void loading();
+  public signal void loaded(bool success);
+
+  public signal void saving();
+  public signal void saved(bool success);
+
+  private uint8[] readbuf;
+
   construct {
     this.buffer = new Wrote.TextBuffer();
 
     this.buffer.modified_changed.connect(() => {
-      this.notify["modified"];
+      this.notify_property("modified");
     });
+
+    this.readbuf = new uint8[BUFSIZE];
   }
 
   public Document(File? f = null, string? enc = null) {
@@ -88,24 +125,64 @@ public class Wrote.Document: Object {
     Object(file: f, encoding: e);
   }
 
-  public async bool load() {
+  public async bool load() throws Wrote.DocumentError {
     if (this.file == null)
       return false;
+
+    this.loading();
 
     FileInputStream? input = null;
 
     try {
       input = yield this.file.read_async(Priority.DEFAULT);
     } catch (Error e) {
-      error(e.message);
+      #if DEBUG
+      warning(e.message);
+      #endif
+
+      this.loaded(false);
+
+      if (e is IOError.NOT_FOUND) {
+        throw new Wrote.DocumentError.FILE_NOT_FOUND(
+          "File ‘%s’ could not be found.",
+          this.file.get_basename());
+
+      } else if (e is IOError.IS_DIRECTORY) {
+        throw new Wrote.DocumentError.FILE_IS_DIRECTORY(
+          "File ‘%s’ is a directory.",
+          this.file.get_basename());
+
+      } else if (e is IOError.PERMISSION_DENIED) {
+        throw new Wrote.DocumentError.PERMISSION_DENIED(
+          "Permission was denied to open ‘%s’.",
+          this.file.get_basename());
+
+      } else {
+        warning(e.message);
+      }
     }
+
+    yield this.query_title();
 
     CharsetConverter? converter = null;
 
     try {
       converter = new CharsetConverter("UTF-8", this.encoding);
-    } catch (Error e) {
-      error(e.message);
+    } catch (Error err) {
+      #if DEBUG
+      warning(err.message);
+      #endif
+
+      this.loaded(false);
+
+      if (err is ConvertError.NO_CONVERSION) {
+        throw new Wrote.DocumentError.ENCODING_NOT_SUPPORTED(
+          "Converting %s encoded files to UTF-8 is not supported.",
+          this.encoding);
+
+      } else {
+        warning(err.message);
+      }
     }
 
     ConverterInputStream converter_input =
@@ -118,28 +195,43 @@ public class Wrote.Document: Object {
     Gtk.TextIter end;
 
     size_t length = 0;
-    uint8[] buf = new uint8[BUFSIZE];
-
     do {
-
       try {
-        length = yield data_input.read_async(buf, Priority.DEFAULT);
-      } catch (Error e) {
+        length = yield data_input.read_async(this.readbuf, Priority.LOW);
+      } catch (Error er) {
         length = -1;
-        error(e.message);
+
+        #if DEBUG
+        warning(er.message);
+        #endif
+
+        this.loaded(false);
+
+        if (er is IOError.INVALID_DATA) {
+          throw new Wrote.DocumentError.ENCODING_NOT_SUPPORTED(
+            "Reading this file as %s failed. Perhaps change the encoding?",
+            this.encoding);
+        } else {
+          warning(er.message);
+        }
       }
 
       if (length > 0) {
         this.buffer.get_end_iter(out end);
-        this.buffer.insert_text(ref end, (string) buf, (int) length);
+        this.buffer.insert_text(ref end, (string) this.readbuf, (int) length);
       }
 
     } while (length > 0);
 
+
+    this.buffer.set_modified(false);
+
+    this.loaded(true);
+
     return true;
   }
 
-  public void move(File to, string? encoding = null) {
+  public void move(File? to, string? encoding = null) {
     if (encoding != null) {
       this.encoding = encoding;
     }
@@ -147,9 +239,11 @@ public class Wrote.Document: Object {
     this.file = to;
   }
 
-  public async bool save() {
+  public async bool save() throws Wrote.DocumentError {
     if (this.file == null)
       return false;
+
+    this.saving();
 
     FileOutputStream? output = null;
 
@@ -160,6 +254,7 @@ public class Wrote.Document: Object {
         FileCreateFlags.PRIVATE,
         Priority.DEFAULT);
     } catch (Error e) {
+      this.saved(false);
       error(e.message);
     }
 
@@ -168,24 +263,13 @@ public class Wrote.Document: Object {
     try {
       converter = new CharsetConverter(this.encoding, "UTF-8");
     } catch (Error e) {
+      this.saved(false);
       error(e.message);
     }
 
-    ConverterOutputStream? converted_output = null;
+    ConverterOutputStream converted_output = new ConverterOutputStream(output, converter);
 
-    try {
-      converted_output = new ConverterOutputStream(output, converter);
-    } catch (Error e) {
-      error(e.message);
-    }
-
-    DataOutputStream? data_output = null;
-
-    try {
-      data_output = new DataOutputStream(converted_output);
-    } catch (Error e) {
-      error(e.message);
-    }
+    DataOutputStream data_output = new DataOutputStream(converted_output);
 
     Gtk.TextIter start, end;
     this.buffer.get_start_iter(out start);
@@ -200,7 +284,8 @@ public class Wrote.Document: Object {
       try {
         yield data_output.write_async(text.data, Priority.HIGH);
       } catch (Error e) {
-        error(e.message);
+        this.saved(false);
+        warning(e.message);
       }
 
       start = end;
@@ -209,12 +294,60 @@ public class Wrote.Document: Object {
 
     this.buffer.set_modified(false);
 
+    this.saved(true);
+
     return true;
   }
 
-  public async bool save_as(File as, string? enc = null) {
+  public async bool save_as(File as, string? enc = null) throws Wrote.DocumentError {
     this.move(as, enc);
 
-    return yield this.save();
+
+    bool good = false;
+
+    try {
+       good = yield this.save();
+    } catch (Wrote.DocumentError e) {
+      throw e;
+    }
+
+    yield this.query_title();
+
+    return good;
+  }
+
+  async void query_title() {
+    if (!this.has_file)
+      return;
+
+    FileInfo? info = null;
+
+    try {
+      info = yield this.file.query_info_async(
+        FileAttribute.STANDARD_DISPLAY_NAME,
+        FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+        Priority.HIGH,
+        null);
+
+      if (info != null) {
+        string? dn = info.get_display_name();
+
+        if (dn != null) {
+          this.title = info.get_display_name();
+        } else {
+          warning("Display name for '%s' is null. Using basename from path.",
+            this.file.get_uri());
+
+          this.title = Filename.display_basename(this.file.get_path());
+        }
+      }
+
+    } catch (Error e) {
+      warning("Querying display name for '%s' failed. Using basename from path. %s",
+        this.file.get_uri(),
+        e.message);
+
+      this.title = Filename.display_basename(this.file.get_path());
+    }
   }
 }

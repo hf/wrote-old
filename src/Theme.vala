@@ -29,7 +29,7 @@ using Config;
 
 namespace Wrote.Theme {
   public static const int WIDTH = 800;
-  public static const int HEIGHT = 500;
+  public static const int HEIGHT = 550;
 
   public static const int MARGIN_TOP = 36;
   public static const int MARGIN_BOTTOM = 36;
@@ -37,13 +37,13 @@ namespace Wrote.Theme {
   public static const int MARGIN_LEFT = 45;
   public static const int MARGIN_RIGHT = 45;
 
-  public static const int EDITOR_WIDTH = 560;
+  public static const int EDITOR_WIDTH = 630;
   public static const int EDITOR_HEIGHT = 300;
 
   public static const string FONT_FAMILY = "M+ 1m";
-  public static const int FONT_SIZE = 11;
+  public static const int FONT_SIZE = 12;
 
-  public static const int LEADING = 4;
+  public static const int LEADING = 6;
   public static const int ABOVE_PARAGRAPH = 3;
   public static const int BELOW_PARAGRAPH = 3;
 

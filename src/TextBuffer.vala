@@ -32,13 +32,23 @@ public class Wrote.TextBuffer: Gtk.TextBuffer {
   [CCode(notify = false)]
   public int32 words { get; private set; default = 0; }
 
+  public int32 chars {
+    get {
+      return (int32) this.get_char_count();
+    }
+  }
+
   construct {
     this.set_modified(true);
+
+    this.changed.connect(() => {
+      this.notify_property("chars");
+    });
   }
 
   public void reset() {
     this.words = 0;
-    this.notify["words"];
+    this.notify_property("words");
   }
 
   public override void delete_range(Gtk.TextIter start, Gtk.TextIter end) {
@@ -107,53 +117,75 @@ public class Wrote.TextBuffer: Gtk.TextBuffer {
     base.delete_range(start, end);
 
     if (changed_words)
-      this.notify["words"];
+      this.notify_property("words");
   }
 
   public override void insert_text(Gtk.TextIter location, string text, int length) {
-    int insert_offset = location.get_offset();
+    int insertion = location.get_offset();
 
     base.insert_text(ref location, text, length);
 
-    // ON-THE-FLY WORD COUNTING :D
-    // FIXME: Speed this up somehow; large documents (100000+ words)
-    // are slow to open
-    Gtk.TextIter i;
-    this.get_iter_at_offset(out i, insert_offset);
-
-    bool changed_words = false;
-
     if (length == 1) {
+      Gtk.TextIter i;
+      this.get_iter_at_offset(out i, insertion);
+
       if (i.starts_word()) {
         words++;
-        changed_words = true;
+        this.notify_property("words");
       }
     } else {
+      // Idly Counting of Words
+      // chunks into 2KB of ASCII characters in order to allow interaction
+      // with the interface
+      Idle.add(() => {
 
-      // FIXME: Call idle function to count words upon load.
+        int leftover_length = 0;
 
-      // set i to the first word after the insert location
-      // if it is not a word start
-      if (!i.starts_word()) {
-        while (!i.is_end() && !i.starts_word()) {
-          i.forward_char();
+        if (length > 2048) {
+          leftover_length = length - 2048;
+          length = 2048;
         }
-      }
 
-      // count word starts backwards from end of inserted text
-      // untill you reach the word start of i
-      while (!location.equal(i)) {
-        if (location.backward_word_start()) {
-          this.words++;
-          changed_words = true;
-        } else {
-          break;
+        Gtk.TextIter i;
+        this.get_iter_at_offset(out i, insertion);
+
+        Gtk.TextIter end;
+        this.get_iter_at_offset(out end, insertion + length);
+
+        // set i to the first word after the insert location
+        // if it is not a word start
+        if (!i.starts_word()) {
+          while (!i.is_end() && !i.starts_word()) {
+            i.forward_char();
+          }
         }
-      }
 
+        bool changed = false;
+
+        // count word starts backwards from end of inserted text
+        // untill you reach the word start of i
+        while (!end.equal(i)) {
+          if (end.backward_word_start()) {
+            this.words++;
+            changed = true;
+          } else {
+            break;
+          }
+        }
+
+        if (changed) {
+          this.notify_property("words");
+        }
+
+        if (leftover_length > 0) {
+          insertion += length;
+          length = leftover_length;
+
+          return true;
+        }
+
+        return false;
+      });
     }
-
-    if (changed_words)
-      this.notify["words"];
   }
 }
