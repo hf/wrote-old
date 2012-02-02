@@ -22,6 +22,7 @@ def options(opts):
 
 
 def configure(conf):
+
   conf.env['LOCAL'] = conf.options.local
 
   if conf.options.local:
@@ -46,8 +47,10 @@ def configure(conf):
     conf.env['PREFIX'] = os.path.abspath(os.path.join(out, 'local'))
 
   conf.load('compiler_c')
-  conf.load('vala')
+  conf.load('vala', funs='')
   conf.load('gnu_dirs')
+
+  conf.check_vala(min_version = (0, 15, 1))
 
   conf.define('PREFIX', conf.env['PREFIX'])
   conf.define('LOCALEDIR', conf.env['LOCALEDIR'])
