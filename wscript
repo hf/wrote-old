@@ -58,6 +58,17 @@ def configure(conf):
 
   conf.write_config_header('config.h')
 
+def post(bld):
+  if bld.is_install and not bld.env['LOCAL']:
+
+    waflib.Logs.info("Updating fonts cache (fc-cache)")
+    fccache = bld.exec_command("fc-cache")
+
+    waflib.Logs.info("Updating hicolor icon cache (gtk-update-icon-cache-3.0)")
+    hicolor = bld.exec_command("gtk-update-icon-cache-3.0 --ignore-theme-index %s"
+      % (os.path.join(bld.env['DATADIR'], 'icons/hicolor')))
+
+
 def build(bld):
   if bld.env['LOCAL']:
     action = 'Building'
@@ -77,9 +88,16 @@ def build(bld):
   if bld.env['LOCAL']:
     wrote.vala_defines = ['DEBUG']
 
+  bld.add_post_fun(post)
+
   bld.install_files('${DATADIR}/wrote/images', bld.path.ant_glob('res/images/**/*'))
   bld.install_files('${DATADIR}/fonts/wrote', bld.path.ant_glob('res/fonts/**/*'))
   bld.install_files('${DATADIR}/applications', 'res/wrote.desktop')
+
+  for icon in os.listdir('res/icons'):
+    size = icon.split('.')[0]
+    size = "%sx%s" % (size, size)
+    bld.install_as('${DATADIR}/icons/hicolor/%s/apps/wrote.png' % (size), os.path.join('res/icons', icon))
 
   if bld.env['LOCAL'] and not bld.is_install:
     waflib.Scripting.run_command('install')
