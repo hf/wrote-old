@@ -27,131 +27,119 @@ using Gtk;
 
 using Wrote;
 
-public enum Wrote.Encoding {
-  UTF8,
-  ISO_8859_1,
-  OTHER
+namespace Wrote.Encoding {
+
+  public static const string UNICODE_REGEX = "(UTF-8|UTF8|Unicode)";
+  public static const string WESTERN_REGEX = "(ISO-*)?8859-?2";
+
+  /* tests whether input describes UTF8 according to UTF8_REGEX! */
+  public static bool is_unicode(string input) {
+    return Regex.match_simple(UNICODE_REGEX, input,
+      RegexCompileFlags.CASELESS | RegexCompileFlags.MULTILINE);
+  }
+
+  public static bool is_western(string input) {
+    return Regex.match_simple(WESTERN_REGEX, input,
+      RegexCompileFlags.CASELESS | RegexCompileFlags.MULTILINE);
+  }
+
 }
 
-namespace Wrote.Encodings {
-  public static const string UTF8 = "Unicode (UTF-8)";
-  public static const string ISO_8859_1 = "Western (ISO 8859-1)";
+public class Wrote.EncodingComboBox: Gtk.ComboBox {
 
-  public static const string UTF8_C = "UTF-8";
-  public static const string ISO_8859_1_C = "8859-1";
-}
-
-public class Wrote.EncodingComboBox: Gtk.ComboBoxText {
-
-  public Wrote.Encoding encoding {
+  public string encoding {
     get {
-      if (this.get_active() == 0) {
-        return Wrote.Encoding.UTF8;
-      } else if (this.get_active() == 1) {
-        return Wrote.Encoding.ISO_8859_1;
-      }
+      Gtk.TreeIter i;
+      this.get_active_iter(out i);
 
-      return Wrote.Encoding.OTHER;
+      unowned string id;
+      this.model.get(i, 0, out id, -1);
+
+      return id;
     }
   }
 
-  public string encoding_string {
+  public string encoding_name {
     get {
-      if (this.encoding == Wrote.Encoding.UTF8) {
-        return Wrote.Encodings.UTF8;
+      Gtk.TreeIter i;
+      this.get_active_iter(out i);
 
-      } else if (this.encoding == Wrote.Encoding.ISO_8859_1) {
-        return Wrote.Encodings.ISO_8859_1;
-      }
+      unowned string encoding;
+      this.model.get(i, 1, out encoding, -1);
 
-      return this.get_active_text();
+      return encoding;
     }
-
-    set {
-      string val = value.strip();
-      string valcmp = val.casefold();
-
-      if (valcmp.contains(Wrote.Encodings.UTF8_C.casefold())) {
-        this.active = 0;
-      } else if (valcmp.contains(Wrote.Encodings.ISO_8859_1_C.casefold())) {
-        this.active = 1;
-      } else {
-        int pe = this.has_encoding(val);
-
-        if (pe < 0) {
-          items++;
-          this.append_text(val);
-          this.active = items;
-        } else {
-          this.active = pe;
-        }
-      }
-    }
-  }
-
-  public string canonical_encoding {
-    get {
-      if (this.encoding == Wrote.Encoding.UTF8) {
-        return "UTF-8";
-      } else if (this.encoding == Wrote.Encoding.ISO_8859_1) {
-        return "ISO-8859-1";
-      }
-
-      return this.encoding_string;
-    }
-  }
-
-  private int items = 0;
-
-  public EncodingComboBox() {
-    Object(has_entry: true);
   }
 
   construct {
+    this.model = new Gtk.ListStore(2, typeof(string), typeof(string));
+
     this.entry_text_column = 1;
 
-    this.append_text(Wrote.Encodings.UTF8);
-    this.append_text(Wrote.Encodings.ISO_8859_1);
+    Gtk.TreeIter i;
 
-    this.items++;
+    (this.model as Gtk.ListStore).append(out i);
+    (this.model as Gtk.ListStore).set(i, 0, "UTF-8", 1, "Unicode (UTF-8)", -1);
 
-    this.active = 0;
+    this.set_active_iter(i);
+
+    (this.model as Gtk.ListStore).append(out i);
+    (this.model as Gtk.ListStore).set(i, 0, "ISO-8859-2", 1, "Western (ISO 8859-2)", -1);
 
     Gtk.Entry entry = this.get_child() as Gtk.Entry;
 
     entry.activate.connect(() => {
-      this.encoding_string = entry.get_text();
+      this.add(entry.text);
     });
   }
 
-  int has_encoding(string enc) {
-    string estr = enc.strip();
-    estr = estr.casefold();
+  public EncodingComboBox() {
+    Object(has_entry: true, id_column: 0);
+  }
 
-    Gtk.TreePath? path = null;
-
-    this.model.foreach((m, p, i) => {
-
-      string? ival = null;
-
-      this.model.get(i, 1, out ival);
-
-      ival = ival.casefold();
-
-      if (ival.contains(estr)) {
-        path = this.model.get_path(i);
-
-        return true;
-      }
-
-      return false;
-    });
-
-    if (path != null && path.get_depth() >= 1) {
-      int[] indices = path.get_indices();
-      return indices[0];
+  public new void add(string input) {
+    if (Wrote.Encoding.is_unicode(input)) {
+      this.set_active_id("UTF-8");
+      return;
     }
 
-    return -1;
+    if (Wrote.Encoding.is_western(input)) {
+      this.set_active_id("ISO88592");
+      return;
+    }
+
+    bool has = false;
+
+    (this.model as Gtk.ListStore).foreach((m, p, i) => {
+
+      string? id, encoding;
+
+      (this.model as Gtk.ListStore).get(i, 0, out id, 1, out encoding, -1);
+
+      if ((input.length >= encoding.length || input.length >= id.length) &&
+          (input.contains(encoding) || input.contains(id)))
+      {
+        this.set_active_id(id);
+        has = true;
+      }
+
+      return has;
+    });
+
+    if (!has) {
+      string normalized = input.strip();
+
+      Gtk.TreeIter i;
+      (this.model as Gtk.ListStore).append(out i);
+      (this.model as Gtk.ListStore).set(i, 0, normalized, 1, normalized, -1);
+      this.set_active_id(normalized);
+
+      // FIXME: Check if the input encoding can be converted to and from UTF-8
+    }
+
+  }
+
+  public void done() {
+    this.add((this.get_child() as Gtk.Entry).text);
   }
 }

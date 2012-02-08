@@ -83,8 +83,6 @@ public class Wrote.OpenFileDialog: Gtk.FileChooserDialog {
     this.title = "Open file…";
     this.action = Gtk.FileChooserAction.OPEN;
 
-    this.transient_for = Wrote.App.window;
-
     this.add_filter(Wrote.FileFilters.All());
     this.add_filter(Wrote.FileFilters.Text());
     this.add_filter(Wrote.FileFilters.Markdown());
@@ -97,26 +95,35 @@ public class Wrote.OpenFileDialog: Gtk.FileChooserDialog {
 
     this.encodings_label = new Gtk.Label("Encoding:");
 
-    this.expander = new Gtk.Expander("More Options");
-    this.expander.resize_toplevel = true;
-    this.expander.expanded = false;
+    // this.expander = new Gtk.Expander("More Options");
+    // this.expander.resize_toplevel = true;
+    // this.expander.expanded = false;
 
     this.container = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
 
     this.container.pack_start(this.encodings_label, false, false, 4);
     this.container.pack_start(this.encodings, true, true, 4);
 
-    this.expander.add(this.container);
+    // this.expander.add(this.container);
 
     this.container.margin_left = 10;
     this.container.margin_right = 10;
 
     Gtk.Box content_area = this.get_content_area() as Gtk.Box;
 
-    content_area.pack_start(this.expander, false, false, 0);
+    //content_area.pack_start(this.expander, false, false, 0);
+    content_area.pack_start(this.container, false, false, 0);
 
-    this.expander.margin_right = this.expander.margin_left = 5;
-    this.expander.margin_bottom = 20;
+    //this.expander.margin_right = this.expander.margin_left = 5;
+    //this.expander.margin_bottom = 20;
+  }
+
+  public OpenFileDialog(Gtk.Window? parent = null) {
+    if (parent == null) {
+      this.transient_for = Wrote.App.window;
+    } else {
+      this.transient_for = parent;
+    }
   }
 
   public override void show() {
@@ -127,10 +134,12 @@ public class Wrote.OpenFileDialog: Gtk.FileChooserDialog {
   }
 
   public override void response(int response) {
+    this.encodings.done();
+
     if (response == Gtk.ResponseType.ACCEPT) {
       Wrote.Window window = this.transient_for as Wrote.Window;
 
-      window.document.move(this.get_file(), this.encodings.canonical_encoding);
+      window.document.move(this.get_file(), this.encodings.encoding);
 
       window.document.load.begin((o, r) => {
         try {

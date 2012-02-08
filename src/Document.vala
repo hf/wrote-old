@@ -40,9 +40,7 @@ public enum Wrote.DocumentState {
 
 public errordomain Wrote.DocumentError {
   FILE_NOT_FOUND,
-  FILE_EXISTS,
   FILE_IS_DIRECTORY,
-  ENCODING_NOT_SUPPORTED,
   ENCODING_CONVERSION_FAILED,
   PERMISSION_DENIED
 }
@@ -60,7 +58,7 @@ public class Wrote.Document: Object {
 
   public string encoding {
     get;
-    construct set;
+    set;
     default = "UTF-8";
   }
 
@@ -97,11 +95,12 @@ public class Wrote.Document: Object {
     }
   }
 
-  public signal void loading();
-  public signal void loaded(bool success);
-
-  public signal void saving();
-  public signal void saved(bool success);
+  public virtual signal void transition
+  (Wrote.DocumentState o, Wrote.DocumentState n, bool success = true)
+  {
+    if (this.state != n)
+      this.state = n;
+  }
 
   private uint8[] readbuf;
 
@@ -110,6 +109,12 @@ public class Wrote.Document: Object {
 
     this.buffer.modified_changed.connect(() => {
       this.notify_property("modified");
+    });
+
+    this.notify["file"].connect(() => {
+      if (file == null) {
+        this.title = "Untitled";
+      }
     });
 
     this.readbuf = new uint8[BUFSIZE];
@@ -125,11 +130,23 @@ public class Wrote.Document: Object {
     Object(file: f, encoding: e);
   }
 
+  // resets everything as if a new file, don't play with this!
+  public void wipe() {
+    this.file = null;
+    this.encoding = "UTF-8";
+    this.buffer.text = "";
+    this.buffer.set_modified(true);
+  }
+
   public async bool load() throws Wrote.DocumentError {
     if (this.file == null)
       return false;
 
-    this.loading();
+    #if DEBUG
+    stdout.printf("Loading file '%s' as %s.\n", this.file.get_uri(), this.encoding);
+    #endif
+
+    this.transition(this.state, Wrote.DocumentState.LOADING);
 
     FileInputStream? input = null;
 
@@ -140,21 +157,21 @@ public class Wrote.Document: Object {
       warning(e.message);
       #endif
 
-      this.loaded(false);
+      this.transition(this.state, Wrote.DocumentState.NORMAL, false);
 
       if (e is IOError.NOT_FOUND) {
         throw new Wrote.DocumentError.FILE_NOT_FOUND(
-          "File ‘%s’ could not be found.",
+          "The file “%s” does not exist.",
           this.file.get_basename());
 
       } else if (e is IOError.IS_DIRECTORY) {
         throw new Wrote.DocumentError.FILE_IS_DIRECTORY(
-          "File ‘%s’ is a directory.",
+          "You tried to open “%s”, which is a directory.",
           this.file.get_basename());
 
       } else if (e is IOError.PERMISSION_DENIED) {
         throw new Wrote.DocumentError.PERMISSION_DENIED(
-          "Permission was denied to open ‘%s’.",
+          "Permission was denied reading “%s”.",
           this.file.get_basename());
 
       } else {
@@ -173,7 +190,7 @@ public class Wrote.Document: Object {
       warning(err.message);
       #endif
 
-      this.loaded(false);
+      this.transition(this.state, Wrote.DocumentState.NORMAL, false);
 
       if (err is ConvertError.NO_CONVERSION) {
         throw new Wrote.DocumentError.ENCODING_NOT_SUPPORTED(
@@ -188,8 +205,6 @@ public class Wrote.Document: Object {
     ConverterInputStream converter_input =
       new ConverterInputStream(input, converter);
 
-    DataInputStream data_input = new DataInputStream(converter_input);
-
     this.buffer.text = "";
 
     Gtk.TextIter end;
@@ -197,7 +212,7 @@ public class Wrote.Document: Object {
     size_t length = 0;
     do {
       try {
-        length = yield data_input.read_async(this.readbuf, Priority.LOW);
+        length = yield converter_input.read_async(this.readbuf, Priority.LOW);
       } catch (Error er) {
         length = -1;
 
@@ -205,11 +220,12 @@ public class Wrote.Document: Object {
         warning(er.message);
         #endif
 
-        this.loaded(false);
+        this.transition(this.state, Wrote.DocumentState.NORMAL, false);
 
         if (er is IOError.INVALID_DATA) {
-          throw new Wrote.DocumentError.ENCODING_NOT_SUPPORTED(
-            "Reading this file as %s failed. Perhaps change the encoding?",
+          throw new Wrote.DocumentError.ENCODING_CONVERSION_FAILED(
+            "Reading the file “%s” as %s failed.",
+            this.file.get_basename(),
             this.encoding);
         } else {
           warning(er.message);
@@ -217,8 +233,23 @@ public class Wrote.Document: Object {
       }
 
       if (length > 0) {
+
+        if (!((string) this.readbuf).validate((int) length)) {
+          #if DEBUG
+          warning("Could read the file as %s but it was invalidly converted to UTF-8.", this.encoding);
+          #endif
+
+          this.transition(this.state, Wrote.DocumentState.NORMAL, false);
+
+          throw new Wrote.DocumentError.ENCODING_CONVERSION_FAILED(
+            "Reading the file “%s” as %s failed.",
+            this.file.get_basename(),
+            this.encoding);
+        }
+
         this.buffer.get_end_iter(out end);
         this.buffer.insert_text(ref end, (string) this.readbuf, (int) length);
+
       }
 
     } while (length > 0);
@@ -226,24 +257,26 @@ public class Wrote.Document: Object {
 
     this.buffer.set_modified(false);
 
-    this.loaded(true);
+    this.transition(this.state, Wrote.DocumentState.NORMAL);
 
     return true;
   }
 
   public void move(File? to, string? encoding = null) {
+    if (to != null) {
+      this.file = to;
+    }
+
     if (encoding != null) {
       this.encoding = encoding;
     }
-
-    this.file = to;
   }
 
   public async bool save() throws Wrote.DocumentError {
     if (this.file == null)
       return false;
 
-    this.saving();
+    this.transition(this.state, Wrote.DocumentState.SAVING);
 
     FileOutputStream? output = null;
 
@@ -254,7 +287,7 @@ public class Wrote.Document: Object {
         FileCreateFlags.PRIVATE,
         Priority.DEFAULT);
     } catch (Error e) {
-      this.saved(false);
+      this.transition(this.state, Wrote.DocumentState.NORMAL, false);
       error(e.message);
     }
 
@@ -263,13 +296,11 @@ public class Wrote.Document: Object {
     try {
       converter = new CharsetConverter(this.encoding, "UTF-8");
     } catch (Error e) {
-      this.saved(false);
+      this.transition(this.state, Wrote.DocumentState.NORMAL, false);
       error(e.message);
     }
 
     ConverterOutputStream converted_output = new ConverterOutputStream(output, converter);
-
-    DataOutputStream data_output = new DataOutputStream(converted_output);
 
     Gtk.TextIter start, end;
     this.buffer.get_start_iter(out start);
@@ -282,9 +313,9 @@ public class Wrote.Document: Object {
       string text = this.buffer.get_text(start, end, false);
 
       try {
-        yield data_output.write_async(text.data, Priority.HIGH);
+        yield converted_output.write_async(text.data, Priority.HIGH);
       } catch (Error e) {
-        this.saved(false);
+        this.transition(this.state, Wrote.DocumentState.NORMAL, false);
         warning(e.message);
       }
 
@@ -294,7 +325,7 @@ public class Wrote.Document: Object {
 
     this.buffer.set_modified(false);
 
-    this.saved(true);
+    this.transition(this.state, Wrote.DocumentState.NORMAL);
 
     return true;
   }

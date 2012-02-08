@@ -123,130 +123,125 @@ public class Wrote.Window: Gtk.Window {
     return true;
   }
 
-  public void present_error(Error e) {
-    if (e is Wrote.DocumentError.FILE_NOT_FOUND) {
+  public void present_error(Error e, Wrote.DocumentState state = Wrote.DocumentState.NORMAL) {
 
-      Gtk.MessageDialog msg = new Gtk.MessageDialog(
-        this,
-        Gtk.DialogFlags.MODAL,
-        Gtk.MessageType.WARNING,
-        Gtk.ButtonsType.NONE,
-        "File could not be found. Would you like to choose another?");
+    if (e is Wrote.DocumentError.FILE_NOT_FOUND) {
+      Gtk.MessageDialog msg = new Gtk.MessageDialog(this, Gtk.DialogFlags.MODAL,
+        Gtk.MessageType.WARNING, Gtk.ButtonsType.NONE,
+        "%s %s", e.message, "Would you like to select another one?");
+
+      msg.format_secondary_text(Wrote.Messages.FILE_NOT_FOUND);
 
       msg.add_buttons(
         "Yes, Select Another File", Gtk.ResponseType.YES,
-        "No, Edit As New File", Gtk.ResponseType.NO);
-
-      msg.format_secondary_text("The file does not seem to exist in the location you asked to open.\n" +
-      "You can select another one, or keep editing this file.");
+        "No, Continue Editing", Gtk.ResponseType.NO);
 
       int response = msg.run();
+      msg.destroy();
 
       if (response == Gtk.ResponseType.YES) {
-        // TODO: Show Open File Dialog
-      } else {
-        this.document.move(null);
+        Wrote.OpenFileDialog ofd = new Wrote.OpenFileDialog(this);
+        ofd.run();
       }
 
-      msg.destroy();
     } else if (e is Wrote.DocumentError.FILE_IS_DIRECTORY) {
+      Gtk.MessageDialog msg = new Gtk.MessageDialog(this, Gtk.DialogFlags.MODAL,
+        Gtk.MessageType.WARNING, Gtk.ButtonsType.NONE,
+        "%s %s", e.message, "Would you like to select a file?");
 
-      Gtk.MessageDialog msg = new Gtk.MessageDialog(
-        this,
-        Gtk.DialogFlags.MODAL,
-        Gtk.MessageType.WARNING,
-        Gtk.ButtonsType.NONE,
-        "Can't open a directory. Would you like to select a file?");
+      msg.format_secondary_text(Wrote.Messages.FILE_IS_DIRECTORY);
 
       msg.add_buttons(
         "Yes, Select A File", Gtk.ResponseType.YES,
-        "No, Edit As New File", Gtk.ResponseType.NO);
-
-      msg.format_secondary_text("You asked to open what appears to be a directory.\n" +
-        "Proceed by selecting a file to open, or keep editing as a new file.");
+        "No, Continue Editing", Gtk.ResponseType.NO);
 
       int response = msg.run();
+      msg.destroy();
 
       if (response == Gtk.ResponseType.YES) {
-        // TODO: Show Open File Dialog
-      } else {
-        this.document.move(null);
+        Wrote.OpenFileDialog ofd = new Wrote.OpenFileDialog(this);
+        ofd.run();
       }
 
-      msg.destroy();
     } else if (e is Wrote.DocumentError.PERMISSION_DENIED) {
+      Gtk.MessageDialog msg = new Gtk.MessageDialog(this, Gtk.DialogFlags.MODAL,
+        Gtk.MessageType.ERROR, Gtk.ButtonsType.NONE, e.message);
 
-      Gtk.MessageDialog msg = new Gtk.MessageDialog(
-        this,
-        Gtk.DialogFlags.MODAL,
-        Gtk.MessageType.ERROR,
-        Gtk.ButtonsType.NONE,
-        "Permission was denied for reading the file.");
+      if (state != Wrote.DocumentState.SAVING) {
+        msg.format_secondary_text(Wrote.Messages.LOAD_PERMISSION_DENIED);
 
-      msg.add_buttons(
-        "OK, I Understand", Gtk.ResponseType.OK);
+        msg.add_buttons("OK, I Understand", Gtk.ResponseType.OK);
 
-      msg.format_secondary_text("You are not allowed to read the contents of the file you asked to open.\n" +
-        "Contact your system administrator to learn what this means and how to change it.\n" +
-        "You can now continue editing this file.");
-
-      msg.run();
-
-      this.document.move(null);
-
-      msg.destroy();
-    } else if (e is Wrote.DocumentError.ENCODING_NOT_SUPPORTED ||
-               e is Wrote.DocumentError.ENCODING_CONVERSION_FAILED)
-    {
-
-      Gtk.MessageDialog msg = new Gtk.MessageDialog(
-        this,
-        Gtk.DialogFlags.MODAL,
-        Gtk.MessageType.ERROR,
-        Gtk.ButtonsType.NONE,
-        e.message);
-
-      Wrote.EncodingComboBox ecb = new Wrote.EncodingComboBox();
-      ecb.encoding_string = this.document.encoding;
-
-      Gtk.Label ecb_label = new Gtk.Label("Select Encoding:");
-
-      Gtk.Box ebox = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 10);
-      ebox.pack_start(ecb_label, false, false, 0);
-      ebox.pack_start(ecb, true, true, 0);
-
-      Gtk.Box msgbox = msg.get_message_area() as Gtk.Box;
-      msgbox.pack_start(ebox, true, true, 0);
-
-      msg.add_buttons(
-        "Yes, Try Again", Gtk.ResponseType.YES,
-        "No, Edit As New File", Gtk.ResponseType.NO);
-
-      if (e is Wrote.DocumentError.ENCODING_NOT_SUPPORTED) {
-        msg.format_secondary_text(
-          "The file cannot be opened because it was saved in an encoding\n" +
-          "that Wrote does not support. Proceed by selecting another\n" +
-          "encoding and try again, or continue editing this file.");
       } else {
-        msg.format_secondary_text(
-          "The file cannot be opened because it does not appear to be encoded\n" +
-          "as %s. Proceed by selecting another encoding and try again,\n" +
-          "or continue editing this file.",
+        msg.format_secondary_text(Wrote.Messages.SAVE_PERMISSION_DENIED);
+
+        msg.add_buttons(
+          "Yes, Select Another Location", Gtk.ResponseType.YES,
+          "No, Continue Editing", Gtk.ResponseType.NO);
+
+      }
+
+      int response = msg.run();
+      msg.destroy();
+
+      if (response == Gtk.ResponseType.YES) {
+        Wrote.SaveFileDialog sfd = new Wrote.SaveFileDialog(this);
+        sfd.run();
+      }
+
+    } else if (e is Wrote.DocumentError.ENCODING_CONVERSION_FAILED) {
+      Gtk.MessageDialog msg = new Gtk.MessageDialog(this, Gtk.DialogFlags.MODAL,
+        Gtk.MessageType.ERROR, Gtk.ButtonsType.NONE, e.message);
+
+      if (state != Wrote.DocumentState.SAVING) {
+        msg.format_secondary_text(Wrote.Messages.SAVE_ENCODING_CONVERSION_FAILED,
+          this.document.encoding);
+      } else {
+        msg.format_secondary_text(Wrote.Messages.LOAD_ENCODING_CONVERSION_FAILED,
           this.document.encoding);
       }
 
-      msg.show.connect(() => {
-        msgbox.show_all();
-      });
+      msg.add_buttons(
+        "OK, Try Again", Gtk.ResponseType.OK,
+        "Cancel", Gtk.ResponseType.CANCEL);
+
+      Gtk.Box content_area = msg.get_content_area() as Gtk.Box;
+
+      Wrote.EncodingComboBox ecb = new Wrote.EncodingComboBox();
+      ecb.add(this.document.encoding);
+
+      Gtk.Label ecb_label = new Gtk.Label("Select Encoding:");
+
+      Gtk.Box ebox = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+      ebox.pack_start(ecb_label, false, false, 0);
+      ebox.pack_start(ecb, true, true, 0);
+
+      ecb_label.margin_right = 10;
+
+      ebox.margin_right = 10;
+      ebox.margin_left = 10;
+
+      content_area.pack_start(ebox, true, false, 4);
+
+      content_area.show_all();
 
       int response = msg.run();
 
-      if (response == Gtk.ResponseType.YES) {
-        this.document.encoding = ecb.canonical_encoding;
-        this.load_document();
+      if (!this.document.has_file) {
+        warning("Cannot retry encoding because the document does not have a file!");
       }
 
-      msg.destroy();
+      if (response == Gtk.ResponseType.OK && this.document.has_file) {
+        ecb.done();
+
+        this.document.move(null, ecb.encoding);
+        this.load_document();
+
+        msg.destroy();
+      } else {
+        this.document.wipe();
+        msg.destroy();
+      }
     }
   }
 
@@ -298,14 +293,15 @@ public class Wrote.Window: Gtk.Window {
         } else {
           Wrote.SaveFileDialog sfd = new Wrote.SaveFileDialog(this);
 
-          ulong saved_handler = 0;
+          ulong transhand = 0;
 
-          saved_handler = this.document.saved.connect((success) => {
-            if (success) {
+          transhand = this.document.transition.connect((f, t, s) => {
+            if (s && f == Wrote.DocumentState.SAVING &&
+                t == Wrote.DocumentState.NORMAL)
+            {
+              this.document.disconnect(transhand);
               this.close();
             }
-
-            this.document.disconnect(saved_handler);
           });
 
           sfd.run();
