@@ -93,6 +93,8 @@ public class Wrote.Window: Gtk.Window {
     base.show();
 
     this.load_document();
+
+    this.status.fade();
   }
 
   public override bool delete_event(Gdk.EventAny e) {

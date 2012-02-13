@@ -27,10 +27,24 @@ using Gtk;
 
 using Wrote;
 
+enum Animation {
+  FADE_IN,
+  FADE_OUT
+}
+
 public class Wrote.Status: Gtk.Label {
+  static const double ANGLE_STEP = 0.1;
+  static const uint PUSH_TIME = 3000;
+  static const uint ANIM_TIME = 40;
+
   public weak Wrote.Document document { get; construct set; }
 
   private uint push_timeout = 0;
+
+  private uint animation_source = 0;
+
+  private Animation animation = Animation.FADE_OUT;
+  private double animation_angle = Math.PI_2;
 
   construct {
     this.document.buffer.notify["words"].connect(() => {
@@ -54,7 +68,7 @@ public class Wrote.Status: Gtk.Label {
     Object(document: d);
   }
 
-  public void push(string text, uint timeout = 3000) {
+  public void push(string text, uint timeout = PUSH_TIME) {
     this.label = text;
 
     if (this.push_timeout != 0) {
@@ -68,6 +82,39 @@ public class Wrote.Status: Gtk.Label {
     });
   }
 
+  public override bool draw(Cairo.Context ctx) {
+    base.draw(ctx);
+
+    double opacity = Math.sin(this.animation_angle);
+
+    ctx.save();
+
+    ctx.set_source(Wrote.Theme.BACKGROUND_PATTERN);
+
+    ctx.set_operator(Cairo.Operator.SOURCE);
+
+    ctx.paint_with_alpha(opacity);
+
+    ctx.restore();
+
+    return false;
+  }
+
+  public void fade() {
+    if (this.animation_source != 0) {
+      Source.remove(this.animation_source);
+      this.animation_source = 0;
+    }
+
+    if (this.animation == Animation.FADE_IN) {
+      this.animation = Animation.FADE_OUT;
+    } else {
+      this.animation = Animation.FADE_IN;
+    }
+
+    this.animation_source = Timeout.add(ANIM_TIME, this.animate);
+  }
+
   public void normal() {
     if (this.push_timeout != 0) {
       Source.remove(this.push_timeout);
@@ -77,5 +124,29 @@ public class Wrote.Status: Gtk.Label {
     this.label = "%d Words / %d Characters".printf(
       this.document.buffer.words,
       this.document.buffer.chars);
+  }
+
+  bool animate() {
+    bool done = false;
+
+    if (this.animation == Animation.FADE_OUT) {
+      this.animation_angle += ANGLE_STEP;
+
+      if (this.animation_angle > Math.PI_2) {
+        this.animation_angle = Math.PI_2;
+        done = true;
+      }
+    } else {
+      this.animation_angle -= ANGLE_STEP;
+
+      if (this.animation_angle < 0) {
+        this.animation_angle = 0;
+        done = true;
+      }
+    }
+
+    this.queue_draw();
+
+    return !done;
   }
 }
