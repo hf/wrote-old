@@ -192,14 +192,6 @@ public class Wrote.Document: Object {
 
       this.transition(this.state, Wrote.DocumentState.NORMAL, false);
 
-      if (err is ConvertError.NO_CONVERSION) {
-        throw new Wrote.DocumentError.ENCODING_NOT_SUPPORTED(
-          "Converting %s encoded files to UTF-8 is not supported.",
-          this.encoding);
-
-      } else {
-        warning(err.message);
-      }
     }
 
     ConverterInputStream converter_input =
