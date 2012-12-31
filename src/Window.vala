@@ -40,6 +40,8 @@ public class Wrote.Window: Gtk.Window {
   public Gtk.ActionGroup actions { get; private set; }
   public Gtk.AccelGroup accels { get; private set; }
 
+  private uint motion_timeout = 0;
+
   public Window(Wrote.Document doc) {
     Object(document: doc);
   }
@@ -87,14 +89,14 @@ public class Wrote.Window: Gtk.Window {
     (new Wrote.Actions.Quit()).connect(this.actions, this.accels);
 
     this.add_accel_group(this.accels);
+
+    this.add_events(Gdk.EventMask.POINTER_MOTION_MASK);
   }
 
   public override void show() {
     base.show();
 
     this.load_document();
-
-    this.status.fade();
   }
 
   public override bool delete_event(Gdk.EventAny e) {
@@ -123,6 +125,26 @@ public class Wrote.Window: Gtk.Window {
     ctx.restore();
 
     return true;
+  }
+
+  public override bool motion_notify_event(Gdk.EventMotion event) {
+    this.status.fade_in();
+
+    if (this.motion_timeout != 0) {
+      Source.remove(this.motion_timeout);
+    }
+
+    this.motion_timeout = Timeout.add(3000, this.toggle_status);
+
+    return false;
+  }
+
+  private bool toggle_status() {
+    this.status.toggle_fade();
+
+    this.motion_timeout = 0;
+
+    return false;
   }
 
   public void present_error(Error e, Wrote.DocumentState state = Wrote.DocumentState.NORMAL) {

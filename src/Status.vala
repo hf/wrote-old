@@ -24,6 +24,7 @@
 */
 
 using Gtk;
+using Cairo;
 
 using Wrote;
 
@@ -33,120 +34,106 @@ enum Animation {
 }
 
 public class Wrote.Status: Gtk.Label {
-  static const double ANGLE_STEP = 0.1;
-  static const uint PUSH_TIME = 3000;
-  static const uint ANIM_TIME = 40;
-
   public weak Wrote.Document document { get; construct set; }
 
-  private uint push_timeout = 0;
-
-  private uint animation_source = 0;
-
-  private Animation animation = Animation.FADE_OUT;
-  private double animation_angle = Math.PI_2;
+  private double animation_angle = 0.0;
+  private uint animation = 0;
+  private Animation animation_state = Animation.FADE_OUT;
 
   construct {
-    this.document.buffer.notify["words"].connect(() => {
-      if (this.push_timeout == 0) {
-        this.normal();
-      }
-    });
+    this.app_paintable = true;
 
     this.document.buffer.notify["chars"].connect(() => {
-      if (this.push_timeout == 0) {
-        this.normal();
-      }
+      this.label = this.words_and_char_count();
     });
 
-    this.normal();
+    this.label = this.words_and_char_count();
 
-    this.override_color(Gtk.StateFlags.NORMAL, Wrote.Theme.COLOR);
-  }
-
-  public Status(Wrote.Document d) {
-    Object(document: d);
-  }
-
-  public void push(string text, uint timeout = PUSH_TIME) {
-    this.label = text;
-
-    if (this.push_timeout != 0) {
-      Source.remove(this.push_timeout);
-    }
-
-    this.push_timeout = Timeout.add(timeout, () => {
-      this.normal();
-
-      return false;
+    this.show.connect(() => {
+      this.toggle_fade();
     });
   }
 
-  public override bool draw(Cairo.Context ctx) {
-    base.draw(ctx);
+  public Status(Wrote.Document document) {
+    Object(document: document);
+  }
 
-    double opacity = Math.sin(this.animation_angle);
+  public override bool draw(Cairo.Context cr) {
+    base.draw(cr);
 
-    ctx.save();
+    cr.save();
 
-    ctx.set_source(Wrote.Theme.BACKGROUND_PATTERN);
+    cr.set_source(Wrote.Theme.BACKGROUND_PATTERN);
 
-    ctx.set_operator(Cairo.Operator.SOURCE);
+    Gtk.Allocation allocation;
 
-    ctx.paint_with_alpha(opacity);
+    this.get_allocation(out allocation);
 
-    ctx.restore();
+    Cairo.Matrix matrix = Cairo.Matrix.identity();
+    matrix.translate(allocation.x, allocation.y);
+
+    cr.set_matrix(matrix);
+
+    cr.paint_with_alpha(1 - Math.sin(this.animation_angle));
+
+    cr.restore();
+
+    cr.set_matrix(Cairo.Matrix.identity());
 
     return false;
   }
 
-  public void fade() {
-    if (this.animation_source != 0) {
-      Source.remove(this.animation_source);
-      this.animation_source = 0;
+  public void toggle_fade() {
+    if (this.animation == 0) {
+      this.animation = Timeout.add(60, this.animate);
     }
 
-    if (this.animation == Animation.FADE_IN) {
-      this.animation = Animation.FADE_OUT;
+    if (this.animation_state == Animation.FADE_OUT) {
+       this.animation_state = Animation.FADE_IN;
     } else {
-      this.animation = Animation.FADE_IN;
+       this.animation_state = Animation.FADE_OUT;
     }
-
-    this.animation_source = Timeout.add(ANIM_TIME, this.animate);
   }
 
-  public void normal() {
-    if (this.push_timeout != 0) {
-      Source.remove(this.push_timeout);
-      this.push_timeout = 0;
+  public void fade_in() {
+    if (this.animation_state == Animation.FADE_OUT) {
+      this.toggle_fade();
     }
-
-    this.label = "%d Words / %d Characters".printf(
-      this.document.buffer.words,
-      this.document.buffer.chars);
   }
 
-  bool animate() {
-    bool done = false;
-
-    if (this.animation == Animation.FADE_OUT) {
-      this.animation_angle += ANGLE_STEP;
-
-      if (this.animation_angle > Math.PI_2) {
-        this.animation_angle = Math.PI_2;
-        done = true;
-      }
-    } else {
-      this.animation_angle -= ANGLE_STEP;
-
-      if (this.animation_angle < 0) {
-        this.animation_angle = 0;
-        done = true;
-      }
+  public void fade_out() {
+    if (this.animation_state == Animation.FADE_IN) {
+      this.toggle_fade();
     }
+  }
 
+  private string words_and_char_count() {
+    return "%d words / %d chars".printf(this.document.buffer.words, this.document.buffer.chars);
+  }
+
+  private bool animate() {
     this.queue_draw();
 
-    return !done;
+    if (this.animation_state == Animation.FADE_IN) {
+      this.animation_angle += 0.08;
+
+      if (this.animation_angle >= Math.PI_2) {
+        this.animation = 0;
+        this.animation_angle = Math.PI_2;
+
+        return false;
+      }
+    } else {
+      this.animation_angle -= 0.1;
+
+      if (this.animation_angle <= 0.0) {
+        this.animation = 0;
+        this.animation_angle = 0;
+
+        return false;
+      }
+    }
+
+    return true;
   }
 }
