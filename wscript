@@ -20,9 +20,7 @@ def options(opts):
     default = False,
     help = "Whether this is a local (debug) build.")
 
-
 def configure(conf):
-
   conf.env['LOCAL'] = conf.options.local
 
   if conf.options.local:
@@ -81,6 +79,7 @@ def build(bld):
   wrote = bld.program(
     target = APPNAME,
     uselib = 'GLIB GTK',
+    lib = ['m'],
     packages = 'glib-2.0 gobject-2.0 gtk+-3.0 config',
     vapi_dirs = ['./vapi'],
     source = bld.path.ant_glob('src/**/*.vala'))
